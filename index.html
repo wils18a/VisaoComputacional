@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Visão Computacional Mobile</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0a0a0a;
+            color: #eee;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        .header { padding: 10px; text-align: center; }
+
+        /* Layout responsivo: Coluna no celular, Linha no PC */
+        .main-layout {
+            display: flex;
+            flex-direction: column; 
+            align-items: center;
+            gap: 15px;
+            width: 100%;
+            padding: 10px;
+        }
+
+        @media (min-width: 900px) {
+            .main-layout { flex-direction: row; justify-content: center; }
+        }
+
+        .canvas-container {
+            position: relative;
+            background: #000;
+            border: 2px solid #444;
+            border-radius: 12px;
+            overflow: hidden;
+            width: 95vw;
+            max-width: 480px; /* Reduzi para garantir fluidez no mobile */
+            aspect-ratio: 4/3;
+        }
+
+        canvas { width: 100%; height: 100%; display: block; }
+        video { display: none; }
+
+        .label-overlay {
+            position: absolute;
+            top: 10px; left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 5;
+        }
+
+        #btn-start {
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+        }
+
+        #status { color: #ffcc00; font-size: 14px; margin-bottom: 10px; }
+        #coords-display { color: #00ff00; font-weight: bold; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h3>Detector de Círculos e Trajetória</h3>
+        <div id="status">Aguardando OpenCV...</div>
+        <button id="btn-start" style="display:none;">ATIVAR CÂMERA</button>
+    </div>
+
+    <div class="main-layout">
+        <div class="canvas-container">
+            <div class="label-overlay">VÍDEO REAL</div>
+            <video id="videoInput" playsinline muted></video>
+            <canvas id="canvasOutput"></canvas>
+        </div>
+
+        <div class="canvas-container">
+            <div class="label-overlay">TRAJETÓRIA (4s)</div>
+            <canvas id="graphCanvas"></canvas>
+        </div>
+    </div>
+
+    <div style="margin: 15px; text-align: center;">
+        Posição: <span id="coords-display">---</span>
+    </div>
+
+    <script async src="https://docs.opencv.org/4.x/opencv.js" onload="cvReady();"></script>
+
+    <script>
+        const video = document.getElementById('videoInput');
+        const canvasOutput = document.getElementById('canvasOutput');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const ctxGraph = graphCanvas.getContext('2d');
+        const btnStart = document.getElementById('btn-start');
+        const status = document.getElementById('status');
+        const coordsDisplay = document.getElementById('coords-display');
+
+        let src, gray, circles, cap;
+        let streaming = false;
+        let historyX = [], historyY = [];
+        let lastPosX = null, lastPosY = null;
+        let lastResetTime = Date.now();
+
+        function cvReady() {
+            status.innerHTML = "OpenCV Carregado! Clique no botão abaixo.";
+            btnStart.style.display = "block";
+        }
+
+        btnStart.addEventListener('click', () => {
+            btnStart.style.display = "none";
+            status.innerHTML = "Acessando câmera...";
+            startCamera();
+        });
+
+        async function startCamera() {
+            const constraints = {
+                video: { 
+                    facingMode: "environment", // Câmera traseira
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                },
+                audio: false
+            };
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                video.play();
+                video.onloadedmetadata = () => {
+                    setupOpenCV();
+                };
+            } catch (err) {
+                status.innerHTML = "Erro: " + err.name + ". Use HTTPS ou verifique as permissões.";
+                console.error(err);
+            }
+        }
+
+        function setupOpenCV() {
+            // Ajustar dimensões internas
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+            canvasOutput.width = width;
+            canvasOutput.height = height;
+            graphCanvas.width = width;
+            graphCanvas.height = height;
+
+            src = new cv.Mat(height, width, cv.CV_8UC4);
+            gray = new cv.Mat();
+            circles = new cv.Mat();
+            cap = new cv.VideoCapture(video);
+            
+            clearGraph();
+            streaming = true;
+            status.innerHTML = "Sistema Ativo";
+            requestAnimationFrame(processFrame);
+        }
+
+        function clearGraph() {
+            ctxGraph.fillStyle = "#111";
+            ctxGraph.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
+            lastPosX = null; lastPosY = null;
+        }
+
+        function processFrame() {
+            if (!streaming) return;
+
+            try {
+                cap.read(src);
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+                // FILTROS PARA MOBILE (Tratamento de nitidez e ruído)
+                cv.medianBlur(gray, gray, 5); 
+
+                // DETECÇÃO (Parâmetros balanceados para performance)
+                cv.HoughCircles(gray, circles, cv.HOUGH_GRADIENT, 1.2, 80, 70, 40, 10, 120);
+
+                cv.imshow('canvasOutput', src); // Mostra o frame limpo
+
+                if (circles.cols > 0) {
+                    let rawX = circles.data32F[0];
+                    let rawY = circles.data32F[1];
+                    let radius = circles.data32F[2];
+
+                    // MÉDIA MÓVEL (Últimas 3 detecções)
+                    historyX.push(rawX);
+                    historyY.push(rawY);
+                    if (historyX.length > 3) { historyX.shift(); historyY.shift(); }
+
+                    let avgX = historyX.reduce((a,b)=>a+b)/historyX.length;
+                    let avgY = historyY.reduce((a,b)=>a+b)/historyY.length;
+
+                    // Desenho no Vídeo
+                    const ctxVideo = canvasOutput.getContext('2d');
+                    ctxVideo.strokeStyle = "#00ff00";
+                    ctxVideo.lineWidth = 4;
+                    ctxVideo.beginPath();
+                    ctxVideo.arc(avgX, avgY, radius, 0, 2*Math.PI);
+                    ctxVideo.stroke();
+
+                    // Trajetória no Gráfico
+                    if (lastPosX !== null) {
+                        ctxGraph.strokeStyle = "red";
+                        ctxGraph.lineWidth = 2;
+                        ctxGraph.beginPath();
+                        ctxGraph.moveTo(lastPosX, lastPosY);
+                        ctxGraph.lineTo(avgX, avgY);
+                        ctxGraph.stroke();
+                    }
+                    lastPosX = avgX; lastPosY = avgY;
+                    coordsDisplay.innerHTML = `X: ${Math.round(avgX)} Y: ${Math.round(avgY)}`;
+                }
+
+                if (Date.now() - lastResetTime > 4000) {
+                    clearGraph();
+                    lastResetTime = Date.now();
+                }
+
+                requestAnimationFrame(processFrame);
+            } catch (err) {
+                console.error(err);
+                requestAnimationFrame(processFrame);
+            }
+        }
+    </script>
+</body>
+</html>
