@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>SMC | CV Edge Analytics</title>
+    <title>SMC | Smart Vision 4.0</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 
@@ -19,7 +19,7 @@
             --radius: 6px;
         }
 
-        /* LAYOUT BASE */
+        /* LAYOUT FIXO - SEM ROLAGEM */
         html, body {
             height: 100vh; width: 100vw; margin: 0; padding: 0;
             background-color: var(--bg-body);
@@ -27,7 +27,6 @@
             display: flex; flex-direction: column; overflow: hidden;
         }
 
-        /* HEADER ESTILO DASHBOARD SMC */
         header {
             background: var(--surface);
             border-bottom: 3px solid var(--smc-blue);
@@ -41,55 +40,50 @@
         .logo-smc { height: 22px; }
         .header-title { font-size: 0.85rem; font-weight: 700; color: var(--smc-blue); text-transform: uppercase; }
 
-        .protocol-badges { display: flex; gap: 5px; }
-        .p-badge { 
-            padding: 2px 6px; border-radius: 4px; background: #e9ecef; 
-            color: #666; border: 1px solid #ced4da; font-size: 0.6rem; font-family: 'JetBrains Mono';
-        }
-        .p-badge.active { background: #d1e7dd; color: #0f5132; border-color: #badbcc; font-weight: bold; }
-
-        /* GRID DE CONTEÚDO */
+        /* GRID PRINCIPAL DIVIDIDO (50/50) */
         main {
             flex: 1; display: flex; flex-direction: column;
-            padding: 10px; gap: 10px; box-sizing: border-box;
+            padding: 8px; gap: 8px; box-sizing: border-box;
+            height: calc(100vh - 50px);
         }
 
         .card {
             background: var(--surface); border-radius: var(--radius);
             box-shadow: var(--shadow); border: 1px solid var(--border);
-            display: flex; flex-direction: column; flex: 1; overflow: hidden;
-            position: relative;
+            display: flex; flex-direction: column; 
+            flex: 1; /* Faz cada card ocupar metade da altura disponível */
+            overflow: hidden;
         }
 
         .card-header {
             padding: 6px 12px; background: #F8F9FA;
             border-bottom: 1px solid var(--border);
-            display: flex; justify-content: space-between; align-items: center;
+            flex: 0 0 auto;
         }
+
         .card-title { font-size: 0.7rem; font-weight: 700; color: var(--smc-dark); text-transform: uppercase; }
+
+        /* ÁREA DE COORDENADAS ABAIXO DO TÍTULO */
+        .telemetry-inline {
+            display: flex; gap: 15px; margin-top: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem; font-weight: 700; color: var(--smc-blue);
+        }
+        .telemetry-label { font-size: 0.6rem; color: #666; margin-right: 4px; text-transform: uppercase; }
 
         .card-body { 
             flex: 1; position: relative; display: flex; 
             justify-content: center; align-items: center; background: #000;
+            overflow: hidden;
         }
 
         canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
-
-        /* VÍDEO HACK PARA MOBILE */
         #videoInput { position: absolute; opacity: 0; pointer-events: none; }
 
-        /* FOOTER / KPI BLOCK */
-        .kpi-footer {
-            background: var(--surface); border-top: 1px solid var(--border);
-            padding: 8px 15px; display: flex; justify-content: space-around;
-            align-items: center; flex: 0 0 auto;
-        }
-
-        .kpi-item { border-left: 3px solid var(--smc-blue); padding-left: 10px; }
-        .kpi-label { display: block; font-size: 0.6rem; color: #666; text-transform: uppercase; }
-        .kpi-value { 
-            font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; 
-            font-weight: 700; color: var(--smc-blue);
+        .p-badge { 
+            padding: 1px 5px; border-radius: 4px; background: #e9ecef; 
+            color: #666; border: 1px solid #ced4da; font-size: 0.55rem; 
+            font-family: 'JetBrains Mono'; float: right;
         }
     </style>
 </head>
@@ -99,19 +93,16 @@
     <header>
         <div class="logo-container">
             <img src="https://webmachines.com.br/uploads/produtos/580/614ccbd704751.png" alt="SMC" class="logo-smc">
-            <span class="header-title">Vision Analytics</span>
+            <span class="header-title">Smart Vision Dashboard</span>
         </div>
-        <div class="protocol-badges">
-            <span class="p-badge active" id="ai-status">CV: ACTIVE</span>
-            <span class="p-badge">OPC-UA</span>
-        </div>
+        <div id="ai-status" class="header-title" style="font-size: 0.6rem; color: var(--status-ok);">CV SYSTEM: ONLINE</div>
     </header>
 
     <main>
         <div class="card">
             <div class="card-header">
-                <span class="card-title">Live Stream: Sensor Feedback</span>
-                <span class="p-badge">TAG: CAM_01</span>
+                <span class="p-badge">SENSOR: PT-01</span>
+                <span class="card-title">Live Edge Analytics</span>
             </div>
             <div class="card-body">
                 <video id="videoInput" playsinline webkit-playsinline muted></video>
@@ -121,29 +112,20 @@
 
         <div class="card">
             <div class="card-header">
+                <span class="p-badge">BUFFER: 4000ms</span>
                 <span class="card-title">Trajectory Mapping (X-Y Axis)</span>
-                <span class="p-badge">BUFFER: 4s</span>
+                
+                <div class="telemetry-inline">
+                    <div><span class="telemetry-label">X:</span><span id="val-x">000</span></div>
+                    <div><span class="telemetry-label">Y:</span><span id="val-y">000</span></div>
+                    <div id="status-detect" style="font-size: 0.65rem; color: var(--status-ok); margin-left: auto;">SCANNING...</div>
+                </div>
             </div>
-            <div class="card-body" style="background: #1a1a1a;">
+            <div class="card-body" style="background: #111;">
                 <canvas id="graphCanvas"></canvas>
             </div>
         </div>
     </main>
-
-    <div class="kpi-footer">
-        <div class="kpi-item">
-            <span class="kpi-label">Eixo X</span>
-            <span class="kpi-value" id="val-x">000</span>
-        </div>
-        <div class="kpi-item">
-            <span class="kpi-label">Eixo Y</span>
-            <span class="kpi-value" id="val-y">000</span>
-        </div>
-        <div class="kpi-item" style="border-left-color: var(--status-ok);">
-            <span class="kpi-label">Status</span>
-            <span class="kpi-value" id="status-detect" style="color: var(--status-ok); font-size: 0.8rem;">READY</span>
-        </div>
-    </div>
 
     <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();"></script>
 
@@ -160,7 +142,6 @@
         let lastPosX = null, lastPosY = null, lastResetTime = Date.now();
 
         function onOpenCvReady() {
-            document.getElementById('ai-status').innerText = "CV: READY";
             startCamera();
         }
 
@@ -199,37 +180,27 @@
         function clearGraph() {
             const w = graphCanvas.width;
             const h = graphCanvas.height;
-            
-            ctxGraph.fillStyle = "#1a1a1a";
+            ctxGraph.fillStyle = "#111";
             ctxGraph.fillRect(0, 0, w, h);
             
-            // Grid Identidade SMC
-            ctxGraph.strokeStyle = "#333";
+            ctxGraph.strokeStyle = "#222";
             ctxGraph.lineWidth = 1;
             ctxGraph.font = "10px 'JetBrains Mono'";
-            ctxGraph.fillStyle = "#666";
+            ctxGraph.fillStyle = "#444";
 
-            // Linhas Horizontais e Valores Y
+            // Grid e Valores
             for (let i = 0; i <= h; i += h/4) {
                 ctxGraph.beginPath();
                 ctxGraph.moveTo(0, i); ctxGraph.lineTo(w, i);
                 ctxGraph.stroke();
                 ctxGraph.fillText(Math.round(i), 5, i - 5);
             }
-
-            // Linhas Verticais e Valores X
             for (let i = 0; i <= w; i += w/4) {
                 ctxGraph.beginPath();
                 ctxGraph.moveTo(i, 0); ctxGraph.lineTo(i, h);
                 ctxGraph.stroke();
                 ctxGraph.fillText(Math.round(i), i + 5, h - 5);
             }
-
-            // Identificação dos Eixos
-            ctxGraph.fillStyle = "#00529B";
-            ctxGraph.fillText("EIXO X →", w - 60, h - 20);
-            ctxGraph.fillText("EIXO Y ↓", 10, 20);
-
             lastPosX = null; lastPosY = null;
         }
 
@@ -240,6 +211,7 @@
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
                 cv.medianBlur(gray, gray, 7);
 
+                // Parametros estáveis: Param1=150 (bordas), Param2=55 (sensibilidade círculo)
                 cv.HoughCircles(gray, circles, cv.HOUGH_GRADIENT, 1.2, 100, 150, 55, 10, 200);
 
                 cv.imshow("canvasOutput", src);
@@ -256,10 +228,11 @@
                     let avgX = historyX.reduce((a, b) => a + b) / historyX.length;
                     let avgY = historyY.reduce((a, b) => a + b) / historyY.length;
 
-                    // Update UI Coords
+                    // Atualiza Coordenadas no Card
                     document.getElementById('val-x').innerText = Math.round(avgX).toString().padStart(3, '0');
                     document.getElementById('val-y').innerText = Math.round(avgY).toString().padStart(3, '0');
-                    document.getElementById('status-detect').innerText = "TRACKING";
+                    document.getElementById('status-detect').innerText = "TRACKING ACTIVE";
+                    document.getElementById('status-detect').style.color = "#28A745";
 
                     // Desenha no vídeo
                     ctxVideo.beginPath();
@@ -268,18 +241,19 @@
                     ctxVideo.lineWidth = 4;
                     ctxVideo.stroke();
 
-                    // Trajetória no gráfico
+                    // Trajetória
                     if (lastPosX !== null) {
                         ctxGraph.beginPath();
                         ctxGraph.moveTo(lastPosX, lastPosY);
                         ctxGraph.lineTo(avgX, avgY);
-                        ctxGraph.strokeStyle = "#00529B"; // Azul SMC para a linha
-                        ctxGraph.lineWidth = 3;
+                        ctxGraph.strokeStyle = "#00529B";
+                        ctxGraph.lineWidth = 2;
                         ctxGraph.stroke();
                     }
                     lastPosX = avgX; lastPosY = avgY;
                 } else {
-                    document.getElementById('status-detect').innerText = "SCANNING";
+                    document.getElementById('status-detect').innerText = "OBJECT LOST";
+                    document.getElementById('status-detect').style.color = "#DC3545";
                 }
 
                 if (Date.now() - lastResetTime > 4000) {
