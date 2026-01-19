@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Visão Computacional Avançada</title>
 
 <style>
@@ -10,10 +10,11 @@
         margin: 0;
         background-color: #0a0a0a;
         color: #eee;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-family: 'Segoe UI', sans-serif;
         display: flex;
         flex-direction: column;
         align-items: center;
+        overflow-x: hidden;
     }
 
     .header {
@@ -25,7 +26,7 @@
         display: flex;
         flex-wrap: wrap;
         justify-content: center;
-        gap: 20px;
+        gap: 15px;
         padding: 10px;
         width: 100%;
     }
@@ -35,32 +36,31 @@
         background: #000;
         border: 2px solid #333;
         border-radius: 8px;
-        overflow: hidden;
+        line-height: 0;
+        max-width: 95%; /* Garante que não estoure no mobile */
     }
 
     canvas {
+        max-width: 100%;
+        height: auto;
         display: block;
     }
 
-    /* VÍDEO INVISÍVEL, MAS ATIVO (ESSENCIAL PARA MOBILE) */
+    /* VÍDEO OCULTO MAS ATIVO */
     #videoInput {
-        position: absolute;
-        opacity: 0;
-        width: 1px;
-        height: 1px;
-        pointer-events: none;
+        display: none;
     }
 
     .label-overlay {
         position: absolute;
         top: 10px;
         left: 10px;
-        background: rgba(0,0,0,0.6);
-        padding: 5px 10px;
+        background: rgba(0,0,0,0.7);
+        padding: 4px 8px;
         border-radius: 4px;
-        font-size: 14px;
-        pointer-events: none;
+        font-size: 12px;
         z-index: 10;
+        pointer-events: none;
     }
 
     #coords-display {
@@ -71,6 +71,7 @@
     .status-msg {
         color: #ffcc00;
         margin-bottom: 10px;
+        font-size: 14px;
     }
 </style>
 </head>
@@ -78,25 +79,25 @@
 <body>
 
 <div class="header">
-    <h2>Detector de Objetos Circulares com Trajetória</h2>
-    <div id="status" class="status-msg">Carregando OpenCV.js...</div>
+    <h2>Detector de Trajetória</h2>
+    <div id="status" class="status-msg">Aguardando OpenCV...</div>
 </div>
 
 <div class="main-layout">
     <div class="canvas-container">
-        <div class="label-overlay">Câmera Real-Time</div>
+        <div class="label-overlay">Câmera</div>
         <video id="videoInput" autoplay muted playsinline></video>
         <canvas id="canvasOutput"></canvas>
     </div>
 
     <div class="canvas-container">
-        <div class="label-overlay">Trajetória (Reseta a cada 4s)</div>
+        <div class="label-overlay">Trajetória (4s)</div>
         <canvas id="graphCanvas"></canvas>
     </div>
 </div>
 
-<div style="margin: 15px;">
-    Coordenada (Média Móvel): <span id="coords-display">Buscando...</span>
+<div style="margin: 15px; font-size: 18px;">
+    <span id="coords-display">Aguardando objeto...</span>
 </div>
 
 <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();"></script>
@@ -112,42 +113,51 @@ let status = document.getElementById('status');
 let src, gray, circles, cap;
 let streaming = false;
 
-// Média móvel
+// Média móvel para suavizar a detecção no celular
 let historyX = [];
 let historyY = [];
-const MOVING_AVG_SIZE = 3;
+const MOVING_AVG_SIZE = 4;
 
-// Trajetória
 let lastPosX = null;
 let lastPosY = null;
 let lastResetTime = Date.now();
 
 function onOpenCvReady() {
-    status.innerHTML = "OpenCV Pronto! Iniciando câmera...";
+    status.innerHTML = "OpenCV Carregado. Iniciando Câmera...";
     startCamera();
 }
 
 function startCamera() {
-    navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+    // Restringir resolução para garantir performance no celular
+    const constraints = {
+        video: { 
+            facingMode: "environment",
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+        },
         audio: false
-    })
+    };
+
+    navigator.mediaDevices.getUserMedia(constraints)
     .then(stream => {
         video.srcObject = stream;
+        video.play();
     })
     .catch(err => {
-        status.innerHTML = "Erro ao acessar câmera: " + err;
+        status.innerHTML = "Erro: " + err.name;
+        status.style.color = "red";
     });
 
-    // EVENTO CORRETO PARA MOBILE
-    video.addEventListener("playing", () => {
+    // Iniciar apenas quando os metadados (largura/altura real) estiverem prontos
+    video.onloadedmetadata = () => {
         if (!streaming) {
             initProcessor();
         }
-    });
+    };
 }
 
 function initProcessor() {
+    // Captura as dimensões reais que a câmera entregou
     const w = video.videoWidth;
     const h = video.videoHeight;
 
@@ -156,6 +166,7 @@ function initProcessor() {
     graphCanvas.width = w;
     graphCanvas.height = h;
 
+    // Inicializa matrizes do OpenCV
     src = new cv.Mat(h, w, cv.CV_8UC4);
     gray = new cv.Mat(h, w, cv.CV_8UC1);
     circles = new cv.Mat();
@@ -164,7 +175,7 @@ function initProcessor() {
     clearGraph();
 
     streaming = true;
-    status.innerHTML = "Sistema Ativo";
+    status.innerHTML = "SISTEMA ONLINE";
     status.style.color = "#00ff00";
 
     requestAnimationFrame(processFrame);
@@ -173,12 +184,15 @@ function initProcessor() {
 function clearGraph() {
     ctxGraph.fillStyle = "#111";
     ctxGraph.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
-
+    
+    // Grade de fundo
     ctxGraph.strokeStyle = "#222";
-    for (let i = 0; i < graphCanvas.width; i += 40)
-        ctxGraph.strokeRect(i, 0, 1, graphCanvas.height);
-    for (let i = 0; i < graphCanvas.height; i += 40)
-        ctxGraph.strokeRect(0, i, graphCanvas.width, 1);
+    for(let i=0; i<graphCanvas.width; i+=50) {
+        ctxGraph.beginPath(); ctxGraph.moveTo(i,0); ctxGraph.lineTo(i, graphCanvas.height); ctxGraph.stroke();
+    }
+    for(let i=0; i<graphCanvas.height; i+=50) {
+        ctxGraph.beginPath(); ctxGraph.moveTo(0,i); ctxGraph.lineTo(graphCanvas.width, i); ctxGraph.stroke();
+    }
 
     lastPosX = null;
     lastPosY = null;
@@ -187,22 +201,25 @@ function clearGraph() {
 function processFrame() {
     if (!streaming) return;
 
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
-        requestAnimationFrame(processFrame);
-        return;
-    }
-
     try {
         cap.read(src);
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-        cv.medianBlur(gray, gray, 5);
+        
+        // Reduz ruído para facilitar detecção no celular
+        cv.GaussianBlur(gray, gray, new cv.Size(9, 9), 2, 2);
 
+        // Parâmetros otimizados para performance mobile
         cv.HoughCircles(
             gray, circles,
             cv.HOUGH_GRADIENT,
-            1.2, 100, 70, 35, 10, 150
+            1.5,     // dp: Resolução inversa (maior = mais rápido/menos preciso)
+            80,      // minDist: Distância mínima entre círculos
+            80,      // param1: Sensibilidade do detector de bordas
+            40,      // param2: Limiar de centro (menor = mais falsos positivos)
+            20, 150  // min/max radius
         );
 
+        // Desenha o vídeo original no canvas
         cv.imshow("canvasOutput", src);
 
         if (circles.cols > 0) {
@@ -210,6 +227,7 @@ function processFrame() {
             let rawY = circles.data32F[1];
             let radius = circles.data32F[2];
 
+            // Média Móvel
             historyX.push(rawX);
             historyY.push(rawY);
             if (historyX.length > MOVING_AVG_SIZE) {
@@ -220,31 +238,31 @@ function processFrame() {
             let avgX = historyX.reduce((a, b) => a + b) / historyX.length;
             let avgY = historyY.reduce((a, b) => a + b) / historyY.length;
 
+            // Desenhar no Canvas de Feedback
             let ctxVideo = canvasOutput.getContext("2d");
             ctxVideo.beginPath();
             ctxVideo.arc(avgX, avgY, radius, 0, Math.PI * 2);
             ctxVideo.strokeStyle = "#00ff00";
-            ctxVideo.lineWidth = 4;
+            ctxVideo.lineWidth = 5;
             ctxVideo.stroke();
 
-            ctxVideo.fillStyle = "red";
-            ctxVideo.fillRect(avgX - 3, avgY - 3, 6, 6);
-
+            // Atualizar Trajetória
             if (lastPosX !== null) {
                 ctxGraph.beginPath();
                 ctxGraph.moveTo(lastPosX, lastPosY);
                 ctxGraph.lineTo(avgX, avgY);
-                ctxGraph.strokeStyle = "red";
-                ctxGraph.lineWidth = 2;
+                ctxGraph.strokeStyle = "#ff3333";
+                ctxGraph.lineWidth = 3;
+                ctxGraph.lineCap = "round";
                 ctxGraph.stroke();
             }
 
             lastPosX = avgX;
             lastPosY = avgY;
-
             coordsDisplay.innerHTML = `X: ${Math.round(avgX)} | Y: ${Math.round(avgY)}`;
         }
 
+        // Reset do gráfico a cada 4 segundos
         if (Date.now() - lastResetTime > 4000) {
             clearGraph();
             lastResetTime = Date.now();
@@ -252,7 +270,7 @@ function processFrame() {
 
         requestAnimationFrame(processFrame);
     } catch (e) {
-        console.error(e);
+        console.log("Erro no processamento: ", e);
         requestAnimationFrame(processFrame);
     }
 }
