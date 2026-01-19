@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>SMC | Smart Vision 4.0</title>
+    <title>SMC | Smart Vision Firebase</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 
@@ -89,9 +89,9 @@
     <header>
         <div class="logo-container">
             <img src="https://webmachines.com.br/uploads/produtos/580/614ccbd704751.png" alt="SMC" class="logo-smc">
-            <span class="header-title">Smart Vision Dashboard</span>
+            <span class="header-title">Vision to Firebase</span>
         </div>
-        <div id="ai-status" class="header-title" style="font-size: 0.6rem; color: var(--status-ok);">CV SYSTEM: ONLINE</div>
+        <div id="db-status" class="header-title" style="font-size: 0.6rem; color: #666;">DB: IDLE</div>
     </header>
 
     <main>
@@ -108,7 +108,7 @@
 
         <div class="card">
             <div class="card-header">
-                <span class="p-badge">BUFFER: 10000ms</span>
+                <span class="p-badge">FIREBASE: PT1/PT2</span>
                 <span class="card-title">Trajectory Mapping (X-Y Axis)</span>
                 
                 <div class="telemetry-inline">
@@ -126,19 +126,46 @@
     <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();"></script>
 
     <script>
+        const FIREBASE_URL = "https://smci40-default-rtdb.firebaseio.com/SMC_i40_4.json";
+        
         let video = document.getElementById('videoInput');
         let canvasOutput = document.getElementById('canvasOutput');
         let graphCanvas = document.getElementById('graphCanvas');
         let ctxGraph = graphCanvas.getContext('2d');
+        let dbStatus = document.getElementById('db-status');
         
         let src, gray, circles, cap;
         let streaming = false;
         let historyX = [], historyY = [];
         const MOVING_AVG_SIZE = 6;
-        let lastPosX = null, lastPosY = null, lastResetTime = Date.now();
+        let lastPosX = null, lastPosY = null;
+        let lastResetTime = Date.now();
+        let lastFirebaseTime = Date.now();
 
         function onOpenCvReady() {
             startCamera();
+        }
+
+        async function sendToFirebase(x, y) {
+            try {
+                // Envia X para PT1 e Y para PT2 conforme solicitado
+                const data = { PT1: Math.round(x), PT2: Math.round(y) };
+                
+                const response = await fetch(FIREBASE_URL, {
+                    method: 'PATCH', // PATCH atualiza apenas PT1 e PT2 sem apagar outros dados no nó
+                    body: JSON.stringify(data),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    dbStatus.innerText = "DB: UPDATED";
+                    dbStatus.style.color = "#28A745";
+                }
+            } catch (error) {
+                console.error("Firebase Error:", error);
+                dbStatus.innerText = "DB: OFFLINE";
+                dbStatus.style.color = "#DC3545";
+            }
         }
 
         function startCamera() {
@@ -176,29 +203,19 @@
         function clearGraph() {
             const w = graphCanvas.width;
             const h = graphCanvas.height;
-            
-            // Alterado para Fundo Branco
             ctxGraph.fillStyle = "#FFFFFF";
             ctxGraph.fillRect(0, 0, w, h);
-            
-            // Grid em Preto de alto contraste
             ctxGraph.strokeStyle = "#000000";
             ctxGraph.lineWidth = 1;
-            
-            // Textos e Valores em Azul SMC
             ctxGraph.font = "bold 10px 'JetBrains Mono'";
             ctxGraph.fillStyle = "#00529B";
 
             for (let i = 0; i <= h; i += h/4) {
-                ctxGraph.beginPath();
-                ctxGraph.moveTo(0, i); ctxGraph.lineTo(w, i);
-                ctxGraph.stroke();
+                ctxGraph.beginPath(); ctxGraph.moveTo(0, i); ctxGraph.lineTo(w, i); ctxGraph.stroke();
                 ctxGraph.fillText(Math.round(i), 5, i - 5);
             }
             for (let i = 0; i <= w; i += w/4) {
-                ctxGraph.beginPath();
-                ctxGraph.moveTo(i, 0); ctxGraph.lineTo(i, h);
-                ctxGraph.stroke();
+                ctxGraph.beginPath(); ctxGraph.moveTo(i, 0); ctxGraph.lineTo(i, h); ctxGraph.stroke();
                 ctxGraph.fillText(Math.round(i), i + 5, h - 5);
             }
             lastPosX = null; lastPosY = null;
@@ -237,22 +254,27 @@
                     ctxVideo.lineWidth = 4;
                     ctxVideo.stroke();
 
-                    // Alterado para Trajetória em VERMELHO
                     if (lastPosX !== null) {
                         ctxGraph.beginPath();
                         ctxGraph.moveTo(lastPosX, lastPosY);
                         ctxGraph.lineTo(avgX, avgY);
-                        ctxGraph.strokeStyle = "#FF0000"; 
+                        ctxGraph.strokeStyle = "#FF0000";
                         ctxGraph.lineWidth = 2;
                         ctxGraph.stroke();
                     }
                     lastPosX = avgX; lastPosY = avgY;
+
+                    // ENVIO PARA FIREBASE A CADA 1 SEGUNDO (1000ms)
+                    if (Date.now() - lastFirebaseTime > 1000) {
+                        sendToFirebase(avgX, avgY);
+                        lastFirebaseTime = Date.now();
+                    }
+
                 } else {
                     document.getElementById('status-detect').innerText = "OBJECT LOST";
                     document.getElementById('status-detect').style.color = "#DC3545";
                 }
 
-                // Alterado para Reset a cada 10 segundos (10000ms)
                 if (Date.now() - lastResetTime > 10000) {
                     clearGraph();
                     lastResetTime = Date.now();
