@@ -2,114 +2,115 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Visão Computacional Mobile</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Visão Computacional Mobile Estável</title>
 
 <style>
-    body {
+    /* RESET E LAYOUT DE TELA CHEIA */
+    html, body {
+        height: 100vh; /* Altura total da tela */
+        width: 100vw;
         margin: 0;
+        padding: 0;
         background-color: #0a0a0a;
         color: #eee;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        overflow-x: hidden;
+        flex-direction: column; /* Organiza Header, Conteúdo, Footer verticalmente */
+        overflow: hidden; /* Impede rolagem */
     }
 
     .header {
-        padding: 10px;
+        flex: 0 0 auto; /* Altura fixa baseada no conteúdo */
+        padding: 5px;
         text-align: center;
+        background: #111;
     }
 
+    .header h3 { margin: 5px 0; font-size: 1.1rem; }
+    .status-msg { color: #ffcc00; font-size: 0.8em; margin: 0;}
+
+    /* ÁREA PRINCIPAL QUE DIVIDE O ESPAÇO */
     .main-layout {
+        flex: 1 1 auto; /* Ocupa todo o espaço vertical restante */
         display: flex;
         flex-direction: column;
-        align-items: center;
-        gap: 15px;
-        padding: 5px;
         width: 100%;
+        padding: 5px;
+        box-sizing: border-box; /* Garante que padding não aumente o tamanho total */
+        gap: 5px;
+        overflow: hidden;
     }
 
+    /* CONTAINERS DOS CANVAS (VÍDEO E GRÁFICO) */
     .canvas-container {
+        flex: 1 1 0px; /* IMPORTANTE: Divide o espaço igualmente e força altura 0 inicial */
         position: relative;
         background: #000;
-        border: 2px solid #333;
-        border-radius: 8px;
+        border: 1px solid #333;
+        border-radius: 4px;
         overflow: hidden;
-        width: 100%; /* Garante largura total no container */
-        max-width: 640px; /* Limita em telas grandes */
-        /* Aspect ratio trick para evitar colapso antes do load */
-        min-height: 200px; 
+        width: 100%;
+        display: flex; /* Para centralizar o canvas dentro */
+        justify-content: center;
+        align-items: center;
     }
 
+    /* O canvas deve tentar preencher o container mantendo a proporção */
     canvas {
         display: block;
-        width: 100%;
-        height: auto;
+        /* 'contain' garante que vemos tudo sem distorção, pode gerar barras pretas */
+        object-fit: contain; 
+        max-width: 100%;
+        max-height: 100%;
     }
 
-    /* CORREÇÃO 1: Usar opacity:0 em vez de visibility:hidden */
-    /* Mobile browsers pausam a decodificação de vídeos 'hidden' para economizar bateria */
+    /* Vídeo escondido mas ativo */
     #videoInput {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        z-index: -1; 
-        opacity: 0; /* Torna invisível mas mantém ativo */
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        object-fit: cover; z-index: -1; opacity: 0;
     }
 
     .label-overlay {
-        position: absolute;
-        top: 5px;
-        left: 5px;
-        background: rgba(0,0,0,0.6);
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        pointer-events: none;
-        z-index: 10;
+        position: absolute; top: 5px; left: 5px;
+        background: rgba(0,0,0,0.5); padding: 2px 6px;
+        border-radius: 4px; font-size: 10px; pointer-events: none; z-index: 10;
     }
 
-    #coords-display {
-        color: #00ff00;
-        font-weight: bold;
-        font-size: 1.2em;
-    }
-
-    .status-msg {
-        color: #ffcc00;
-        margin-bottom: 5px;
+    /* RODAPÉ */
+    .footer-info {
+        flex: 0 0 auto;
+        padding: 5px;
+        text-align: center;
+        background: #111;
         font-size: 0.9em;
     }
+    #coords-display { color: #00ff00; font-weight: bold; }
 </style>
 </head>
 
 <body>
 
 <div class="header">
-    <h3>Detector de Círculos</h3>
+    <h3>Detector de Círculos (Estável)</h3>
     <div id="status" class="status-msg">Carregando OpenCV.js...</div>
 </div>
 
 <div class="main-layout">
     <div class="canvas-container">
-        <div class="label-overlay">Câmera Real-Time</div>
+        <div class="label-overlay">Câmera (Processada)</div>
         <video id="videoInput" playsinline webkit-playsinline muted></video>
         <canvas id="canvasOutput"></canvas>
     </div>
 
     <div class="canvas-container">
-        <div class="label-overlay">Trajetória</div>
+        <div class="label-overlay">Trajetória (4s)</div>
         <canvas id="graphCanvas"></canvas>
     </div>
 </div>
 
-<div style="margin: 10px; text-align: center;">
-    Posição: <span id="coords-display">--</span>
+<div class="footer-info">
+    Posição: <span id="coords-display">Aguardando...</span>
 </div>
 
 <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();"></script>
@@ -125,18 +126,18 @@ let status = document.getElementById('status');
 let src, gray, circles, cap;
 let streaming = false;
 
-// Média móvel
+// AJUSTE DE ESTABILIDADE 1: Média móvel maior
+// Aumentado de 3 para 6 para movimentos mais suaves
 let historyX = [];
 let historyY = [];
-const MOVING_AVG_SIZE = 3;
+const MOVING_AVG_SIZE = 6; 
 
-// Trajetória
 let lastPosX = null;
 let lastPosY = null;
 let lastResetTime = Date.now();
 
 function onOpenCvReady() {
-    status.innerHTML = "OpenCV Pronto. Solicite permissão da câmera.";
+    status.innerHTML = "OpenCV Pronto. Iniciando câmera...";
     startCamera();
 }
 
@@ -144,7 +145,6 @@ function startCamera() {
     const constraints = {
         video: {
             facingMode: "environment",
-            // Flexibilizando a resolução para compatibilidade maior
             width: { ideal: 640 },
             height: { ideal: 480 }
         },
@@ -154,35 +154,20 @@ function startCamera() {
     navigator.mediaDevices.getUserMedia(constraints)
     .then(stream => {
         video.srcObject = stream;
-        // Promise de play para evitar erros de autoplay policy
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                status.innerHTML = "Erro Autoplay: Clique na tela.";
-                console.error("Auto-play prevented");
-            });
-        }
+        video.play().catch(e => console.error("Erro play:", e));
     })
     .catch(err => {
-        status.innerHTML = "Erro Câmera: " + err.name;
-        // Dica comum: se for erro de segurança (não HTTPS)
-        if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-            status.innerHTML += " (Use HTTPS!)";
-        }
+        status.innerHTML = "Erro Câmera: " + err.name + ". Use HTTPS.";
         console.error(err);
     });
 
-    // CORREÇÃO CRÍTICA 2: Usar 'playing' garante que já temos dimensões reais e frames fluindo
     video.addEventListener("playing", () => {
-        if (!streaming) {
-            initProcessor();
-        }
+        if (!streaming) initProcessor();
     });
 }
 
 function initProcessor() {
     if (video.videoWidth === 0) {
-        // Se ainda for 0, tenta novamente em breve
         setTimeout(initProcessor, 100);
         return;
     }
@@ -190,17 +175,12 @@ function initProcessor() {
     const w = video.videoWidth;
     const h = video.videoHeight;
 
-    // CORREÇÃO CRÍTICA 3: Definir atributos físicos na tag HTML do vídeo
-    // OpenCV precisa ler esses atributos internos, não só o CSS.
-    video.width = w;
-    video.height = h;
+    // Define tamanho interno dos elementos baseado na fonte de vídeo
+    video.width = w; video.height = h;
+    canvasOutput.width = w; canvasOutput.height = h;
+    // O gráfico também usa a mesma resolução interna da câmera
+    graphCanvas.width = w; graphCanvas.height = h;
 
-    canvasOutput.width = w;
-    canvasOutput.height = h;
-    graphCanvas.width = w;
-    graphCanvas.height = h;
-
-    // Inicializa Matrizes
     src = new cv.Mat(h, w, cv.CV_8UC4);
     gray = new cv.Mat(h, w, cv.CV_8UC1);
     circles = new cv.Mat();
@@ -209,7 +189,7 @@ function initProcessor() {
     clearGraph();
     streaming = true;
     
-    status.innerHTML = `Processando: ${w}x${h}`;
+    status.innerHTML = `Ativo: ${w}x${h} | Média: ${MOVING_AVG_SIZE} frames`;
     status.style.color = "#00ff00";
 
     requestAnimationFrame(processFrame);
@@ -219,14 +199,17 @@ function clearGraph() {
     ctxGraph.fillStyle = "#111";
     ctxGraph.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
     
-    // Grid
-    ctxGraph.strokeStyle = "#222";
-    const step = 50;
+    ctxGraph.strokeStyle = "#333";
+    ctxGraph.lineWidth = 1;
+    // Grid ajustado para a resolução interna
+    const stepX = graphCanvas.width / 8;
+    const stepY = graphCanvas.height / 6;
+
     ctxGraph.beginPath();
-    for (let i = 0; i < graphCanvas.width; i += step) {
+    for (let i = stepX; i < graphCanvas.width; i += stepX) {
         ctxGraph.moveTo(i, 0); ctxGraph.lineTo(i, graphCanvas.height);
     }
-    for (let i = 0; i < graphCanvas.height; i += step) {
+    for (let i = stepY; i < graphCanvas.height; i += stepY) {
         ctxGraph.moveTo(0, i); ctxGraph.lineTo(graphCanvas.width, i);
     }
     ctxGraph.stroke();
@@ -239,35 +222,34 @@ function processFrame() {
     if (!streaming) return;
 
     try {
-        // Tenta ler o frame
         cap.read(src);
-        
-        // Conversão e Blur
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-        // Blur um pouco mais leve para mobile ajuda no FPS
-        cv.medianBlur(gray, gray, 5); 
+        
+        // AJUSTE DE ESTABILIDADE 2: Blur maior
+        // Aumentado de 5 para 7 para reduzir ruído de textura
+        cv.medianBlur(gray, gray, 7); 
 
-        // Hough Transform
+        // AJUSTE DE ESTABILIDADE 3: Parâmetros de Hough mais rigorosos
         cv.HoughCircles(
             gray, circles,
             cv.HOUGH_GRADIENT,
-            1.2, 100, 
-            70, 35, // Param1, Param2 (sensibilidade)
-            10, 150 // MinRadius, MaxRadius
+            1.2, // dp (resolução do acumulador)
+            100, // minDist (distância mínima entre centros)
+            150, // param1 (Limiar superior do Canny edge detector) -> Aumentado para filtrar arestas fracas
+            55,  // param2 (Limiar do acumulador) -> AUMENTADO SIGNIFICATIVAMENTE (era 35). Define quão "perfeito" o círculo deve ser.
+            10, 200 // MinRadius, MaxRadius (ajuste conforme o tamanho do objeto real)
         );
 
-        // Renderiza imagem da câmera no canvas visível
         cv.imshow("canvasOutput", src);
-
-        // Desenha detecções
         let ctxVideo = canvasOutput.getContext("2d");
         
         if (circles.cols > 0) {
+            // Pega apenas o primeiro círculo detectado (o mais forte)
             let rawX = circles.data32F[0];
             let rawY = circles.data32F[1];
             let radius = circles.data32F[2];
 
-            // Média Móvel
+            // Aplica Média Móvel
             historyX.push(rawX);
             historyY.push(rawY);
             if (historyX.length > MOVING_AVG_SIZE) {
@@ -278,33 +260,36 @@ function processFrame() {
             let avgX = historyX.reduce((a, b) => a + b) / historyX.length;
             let avgY = historyY.reduce((a, b) => a + b) / historyY.length;
 
-            // Desenha Círculo
+            // Desenha no vídeo
             ctxVideo.beginPath();
             ctxVideo.arc(avgX, avgY, radius, 0, Math.PI * 2);
             ctxVideo.strokeStyle = "#00ff00";
-            ctxVideo.lineWidth = 4;
+            ctxVideo.lineWidth = 3;
             ctxVideo.stroke();
-
-            // Centro
             ctxVideo.fillStyle = "red";
-            ctxVideo.fillRect(avgX - 3, avgY - 3, 6, 6);
+            ctxVideo.fillRect(avgX - 4, avgY - 4, 8, 8);
 
-            // Desenha Trajetória
+            // Desenha na trajetória
             if (lastPosX !== null) {
                 ctxGraph.beginPath();
                 ctxGraph.moveTo(lastPosX, lastPosY);
                 ctxGraph.lineTo(avgX, avgY);
-                ctxGraph.strokeStyle = "red";
-                ctxGraph.lineWidth = 3;
+                ctxGraph.strokeStyle = "cyan"; // Cor da linha mais visível
+                ctxGraph.lineWidth = 2;
                 ctxGraph.stroke();
             }
-
             lastPosX = avgX;
             lastPosY = avgY;
             coordsDisplay.innerHTML = `X: ${Math.round(avgX)} | Y: ${Math.round(avgY)}`;
+        } else {
+            coordsDisplay.innerHTML = "Nenhum círculo detectado";
+             // Opcional: Se perder a detecção, reseta a média móvel para evitar "pulo" quando voltar
+             if(historyX.length > 0 && Date.now() - lastResetTime > 500) {
+                 historyX = []; historyY = []; lastPosX = null;
+             }
         }
 
-        // Reset automático do gráfico
+        // Limpa o gráfico a cada 4 segundos
         if (Date.now() - lastResetTime > 4000) {
             clearGraph();
             lastResetTime = Date.now();
@@ -314,7 +299,6 @@ function processFrame() {
 
     } catch (e) {
         console.error("Erro processamento:", e);
-        // Se der erro, tenta continuar no próximo frame
         requestAnimationFrame(processFrame);
     }
 }
