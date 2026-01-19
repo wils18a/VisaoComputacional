@@ -1,308 +1,297 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Visão Computacional Mobile Estável</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SMC | CV Edge Analytics</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 
-<style>
-    /* RESET E LAYOUT DE TELA CHEIA */
-    html, body {
-        height: 100vh; /* Altura total da tela */
-        width: 100vw;
-        margin: 0;
-        padding: 0;
-        background-color: #0a0a0a;
-        color: #eee;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        display: flex;
-        flex-direction: column; /* Organiza Header, Conteúdo, Footer verticalmente */
-        overflow: hidden; /* Impede rolagem */
-    }
+    <style>
+        :root {
+            --smc-blue: #00529B;
+            --smc-dark: #003366;
+            --bg-body: #F0F2F5;
+            --surface: #FFFFFF;
+            --status-ok: #28A745;
+            --border: #DEE2E6;
+            --shadow: 0 2px 4px rgba(0,0,0,0.08);
+            --radius: 6px;
+        }
 
-    .header {
-        flex: 0 0 auto; /* Altura fixa baseada no conteúdo */
-        padding: 5px;
-        text-align: center;
-        background: #111;
-    }
+        /* LAYOUT BASE */
+        html, body {
+            height: 100vh; width: 100vw; margin: 0; padding: 0;
+            background-color: var(--bg-body);
+            color: #212529; font-family: 'Inter', sans-serif;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
 
-    .header h3 { margin: 5px 0; font-size: 1.1rem; }
-    .status-msg { color: #ffcc00; font-size: 0.8em; margin: 0;}
+        /* HEADER ESTILO DASHBOARD SMC */
+        header {
+            background: var(--surface);
+            border-bottom: 3px solid var(--smc-blue);
+            padding: 0.5rem 1rem;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: var(--shadow);
+            flex: 0 0 auto;
+        }
 
-    /* ÁREA PRINCIPAL QUE DIVIDE O ESPAÇO */
-    .main-layout {
-        flex: 1 1 auto; /* Ocupa todo o espaço vertical restante */
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        padding: 5px;
-        box-sizing: border-box; /* Garante que padding não aumente o tamanho total */
-        gap: 5px;
-        overflow: hidden;
-    }
+        .logo-container { display: flex; align-items: center; gap: 10px; }
+        .logo-smc { height: 22px; }
+        .header-title { font-size: 0.85rem; font-weight: 700; color: var(--smc-blue); text-transform: uppercase; }
 
-    /* CONTAINERS DOS CANVAS (VÍDEO E GRÁFICO) */
-    .canvas-container {
-        flex: 1 1 0px; /* IMPORTANTE: Divide o espaço igualmente e força altura 0 inicial */
-        position: relative;
-        background: #000;
-        border: 1px solid #333;
-        border-radius: 4px;
-        overflow: hidden;
-        width: 100%;
-        display: flex; /* Para centralizar o canvas dentro */
-        justify-content: center;
-        align-items: center;
-    }
+        .protocol-badges { display: flex; gap: 5px; }
+        .p-badge { 
+            padding: 2px 6px; border-radius: 4px; background: #e9ecef; 
+            color: #666; border: 1px solid #ced4da; font-size: 0.6rem; font-family: 'JetBrains Mono';
+        }
+        .p-badge.active { background: #d1e7dd; color: #0f5132; border-color: #badbcc; font-weight: bold; }
 
-    /* O canvas deve tentar preencher o container mantendo a proporção */
-    canvas {
-        display: block;
-        /* 'contain' garante que vemos tudo sem distorção, pode gerar barras pretas */
-        object-fit: contain; 
-        max-width: 100%;
-        max-height: 100%;
-    }
+        /* GRID DE CONTEÚDO */
+        main {
+            flex: 1; display: flex; flex-direction: column;
+            padding: 10px; gap: 10px; box-sizing: border-box;
+        }
 
-    /* Vídeo escondido mas ativo */
-    #videoInput {
-        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        object-fit: cover; z-index: -1; opacity: 0;
-    }
+        .card {
+            background: var(--surface); border-radius: var(--radius);
+            box-shadow: var(--shadow); border: 1px solid var(--border);
+            display: flex; flex-direction: column; flex: 1; overflow: hidden;
+            position: relative;
+        }
 
-    .label-overlay {
-        position: absolute; top: 5px; left: 5px;
-        background: rgba(0,0,0,0.5); padding: 2px 6px;
-        border-radius: 4px; font-size: 10px; pointer-events: none; z-index: 10;
-    }
+        .card-header {
+            padding: 6px 12px; background: #F8F9FA;
+            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .card-title { font-size: 0.7rem; font-weight: 700; color: var(--smc-dark); text-transform: uppercase; }
 
-    /* RODAPÉ */
-    .footer-info {
-        flex: 0 0 auto;
-        padding: 5px;
-        text-align: center;
-        background: #111;
-        font-size: 0.9em;
-    }
-    #coords-display { color: #00ff00; font-weight: bold; }
-</style>
+        .card-body { 
+            flex: 1; position: relative; display: flex; 
+            justify-content: center; align-items: center; background: #000;
+        }
+
+        canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        /* VÍDEO HACK PARA MOBILE */
+        #videoInput { position: absolute; opacity: 0; pointer-events: none; }
+
+        /* FOOTER / KPI BLOCK */
+        .kpi-footer {
+            background: var(--surface); border-top: 1px solid var(--border);
+            padding: 8px 15px; display: flex; justify-content: space-around;
+            align-items: center; flex: 0 0 auto;
+        }
+
+        .kpi-item { border-left: 3px solid var(--smc-blue); padding-left: 10px; }
+        .kpi-label { display: block; font-size: 0.6rem; color: #666; text-transform: uppercase; }
+        .kpi-value { 
+            font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; 
+            font-weight: 700; color: var(--smc-blue);
+        }
+    </style>
 </head>
 
 <body>
 
-<div class="header">
-    <h3>Detector de Círculos (Estável)</h3>
-    <div id="status" class="status-msg">Carregando OpenCV.js...</div>
-</div>
+    <header>
+        <div class="logo-container">
+            <img src="https://webmachines.com.br/uploads/produtos/580/614ccbd704751.png" alt="SMC" class="logo-smc">
+            <span class="header-title">Vision Analytics</span>
+        </div>
+        <div class="protocol-badges">
+            <span class="p-badge active" id="ai-status">CV: ACTIVE</span>
+            <span class="p-badge">OPC-UA</span>
+        </div>
+    </header>
 
-<div class="main-layout">
-    <div class="canvas-container">
-        <div class="label-overlay">Câmera (Processada)</div>
-        <video id="videoInput" playsinline webkit-playsinline muted></video>
-        <canvas id="canvasOutput"></canvas>
+    <main>
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Live Stream: Sensor Feedback</span>
+                <span class="p-badge">TAG: CAM_01</span>
+            </div>
+            <div class="card-body">
+                <video id="videoInput" playsinline webkit-playsinline muted></video>
+                <canvas id="canvasOutput"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Trajectory Mapping (X-Y Axis)</span>
+                <span class="p-badge">BUFFER: 4s</span>
+            </div>
+            <div class="card-body" style="background: #1a1a1a;">
+                <canvas id="graphCanvas"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <div class="kpi-footer">
+        <div class="kpi-item">
+            <span class="kpi-label">Eixo X</span>
+            <span class="kpi-value" id="val-x">000</span>
+        </div>
+        <div class="kpi-item">
+            <span class="kpi-label">Eixo Y</span>
+            <span class="kpi-value" id="val-y">000</span>
+        </div>
+        <div class="kpi-item" style="border-left-color: var(--status-ok);">
+            <span class="kpi-label">Status</span>
+            <span class="kpi-value" id="status-detect" style="color: var(--status-ok); font-size: 0.8rem;">READY</span>
+        </div>
     </div>
 
-    <div class="canvas-container">
-        <div class="label-overlay">Trajetória (4s)</div>
-        <canvas id="graphCanvas"></canvas>
-    </div>
-</div>
+    <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();"></script>
 
-<div class="footer-info">
-    Posição: <span id="coords-display">Aguardando...</span>
-</div>
-
-<script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();"></script>
-
-<script>
-let video = document.getElementById('videoInput');
-let canvasOutput = document.getElementById('canvasOutput');
-let graphCanvas = document.getElementById('graphCanvas');
-let ctxGraph = graphCanvas.getContext('2d');
-let coordsDisplay = document.getElementById('coords-display');
-let status = document.getElementById('status');
-
-let src, gray, circles, cap;
-let streaming = false;
-
-// AJUSTE DE ESTABILIDADE 1: Média móvel maior
-// Aumentado de 3 para 6 para movimentos mais suaves
-let historyX = [];
-let historyY = [];
-const MOVING_AVG_SIZE = 6; 
-
-let lastPosX = null;
-let lastPosY = null;
-let lastResetTime = Date.now();
-
-function onOpenCvReady() {
-    status.innerHTML = "OpenCV Pronto. Iniciando câmera...";
-    startCamera();
-}
-
-function startCamera() {
-    const constraints = {
-        video: {
-            facingMode: "environment",
-            width: { ideal: 640 },
-            height: { ideal: 480 }
-        },
-        audio: false
-    };
-
-    navigator.mediaDevices.getUserMedia(constraints)
-    .then(stream => {
-        video.srcObject = stream;
-        video.play().catch(e => console.error("Erro play:", e));
-    })
-    .catch(err => {
-        status.innerHTML = "Erro Câmera: " + err.name + ". Use HTTPS.";
-        console.error(err);
-    });
-
-    video.addEventListener("playing", () => {
-        if (!streaming) initProcessor();
-    });
-}
-
-function initProcessor() {
-    if (video.videoWidth === 0) {
-        setTimeout(initProcessor, 100);
-        return;
-    }
-
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-
-    // Define tamanho interno dos elementos baseado na fonte de vídeo
-    video.width = w; video.height = h;
-    canvasOutput.width = w; canvasOutput.height = h;
-    // O gráfico também usa a mesma resolução interna da câmera
-    graphCanvas.width = w; graphCanvas.height = h;
-
-    src = new cv.Mat(h, w, cv.CV_8UC4);
-    gray = new cv.Mat(h, w, cv.CV_8UC1);
-    circles = new cv.Mat();
-    cap = new cv.VideoCapture(video);
-
-    clearGraph();
-    streaming = true;
-    
-    status.innerHTML = `Ativo: ${w}x${h} | Média: ${MOVING_AVG_SIZE} frames`;
-    status.style.color = "#00ff00";
-
-    requestAnimationFrame(processFrame);
-}
-
-function clearGraph() {
-    ctxGraph.fillStyle = "#111";
-    ctxGraph.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
-    
-    ctxGraph.strokeStyle = "#333";
-    ctxGraph.lineWidth = 1;
-    // Grid ajustado para a resolução interna
-    const stepX = graphCanvas.width / 8;
-    const stepY = graphCanvas.height / 6;
-
-    ctxGraph.beginPath();
-    for (let i = stepX; i < graphCanvas.width; i += stepX) {
-        ctxGraph.moveTo(i, 0); ctxGraph.lineTo(i, graphCanvas.height);
-    }
-    for (let i = stepY; i < graphCanvas.height; i += stepY) {
-        ctxGraph.moveTo(0, i); ctxGraph.lineTo(graphCanvas.width, i);
-    }
-    ctxGraph.stroke();
-
-    lastPosX = null;
-    lastPosY = null;
-}
-
-function processFrame() {
-    if (!streaming) return;
-
-    try {
-        cap.read(src);
-        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    <script>
+        let video = document.getElementById('videoInput');
+        let canvasOutput = document.getElementById('canvasOutput');
+        let graphCanvas = document.getElementById('graphCanvas');
+        let ctxGraph = graphCanvas.getContext('2d');
         
-        // AJUSTE DE ESTABILIDADE 2: Blur maior
-        // Aumentado de 5 para 7 para reduzir ruído de textura
-        cv.medianBlur(gray, gray, 7); 
+        let src, gray, circles, cap;
+        let streaming = false;
+        let historyX = [], historyY = [];
+        const MOVING_AVG_SIZE = 6;
+        let lastPosX = null, lastPosY = null, lastResetTime = Date.now();
 
-        // AJUSTE DE ESTABILIDADE 3: Parâmetros de Hough mais rigorosos
-        cv.HoughCircles(
-            gray, circles,
-            cv.HOUGH_GRADIENT,
-            1.2, // dp (resolução do acumulador)
-            100, // minDist (distância mínima entre centros)
-            150, // param1 (Limiar superior do Canny edge detector) -> Aumentado para filtrar arestas fracas
-            55,  // param2 (Limiar do acumulador) -> AUMENTADO SIGNIFICATIVAMENTE (era 35). Define quão "perfeito" o círculo deve ser.
-            10, 200 // MinRadius, MaxRadius (ajuste conforme o tamanho do objeto real)
-        );
-
-        cv.imshow("canvasOutput", src);
-        let ctxVideo = canvasOutput.getContext("2d");
-        
-        if (circles.cols > 0) {
-            // Pega apenas o primeiro círculo detectado (o mais forte)
-            let rawX = circles.data32F[0];
-            let rawY = circles.data32F[1];
-            let radius = circles.data32F[2];
-
-            // Aplica Média Móvel
-            historyX.push(rawX);
-            historyY.push(rawY);
-            if (historyX.length > MOVING_AVG_SIZE) {
-                historyX.shift();
-                historyY.shift();
-            }
-
-            let avgX = historyX.reduce((a, b) => a + b) / historyX.length;
-            let avgY = historyY.reduce((a, b) => a + b) / historyY.length;
-
-            // Desenha no vídeo
-            ctxVideo.beginPath();
-            ctxVideo.arc(avgX, avgY, radius, 0, Math.PI * 2);
-            ctxVideo.strokeStyle = "#00ff00";
-            ctxVideo.lineWidth = 3;
-            ctxVideo.stroke();
-            ctxVideo.fillStyle = "red";
-            ctxVideo.fillRect(avgX - 4, avgY - 4, 8, 8);
-
-            // Desenha na trajetória
-            if (lastPosX !== null) {
-                ctxGraph.beginPath();
-                ctxGraph.moveTo(lastPosX, lastPosY);
-                ctxGraph.lineTo(avgX, avgY);
-                ctxGraph.strokeStyle = "cyan"; // Cor da linha mais visível
-                ctxGraph.lineWidth = 2;
-                ctxGraph.stroke();
-            }
-            lastPosX = avgX;
-            lastPosY = avgY;
-            coordsDisplay.innerHTML = `X: ${Math.round(avgX)} | Y: ${Math.round(avgY)}`;
-        } else {
-            coordsDisplay.innerHTML = "Nenhum círculo detectado";
-             // Opcional: Se perder a detecção, reseta a média móvel para evitar "pulo" quando voltar
-             if(historyX.length > 0 && Date.now() - lastResetTime > 500) {
-                 historyX = []; historyY = []; lastPosX = null;
-             }
+        function onOpenCvReady() {
+            document.getElementById('ai-status').innerText = "CV: READY";
+            startCamera();
         }
 
-        // Limpa o gráfico a cada 4 segundos
-        if (Date.now() - lastResetTime > 4000) {
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment", width: 640, height: 480 }, 
+                audio: false 
+            })
+            .then(stream => {
+                video.srcObject = stream;
+                video.play();
+            });
+
+            video.addEventListener("playing", () => {
+                if (!streaming) initProcessor();
+            });
+        }
+
+        function initProcessor() {
+            const w = video.videoWidth;
+            const h = video.videoHeight;
+            video.width = w; video.height = h;
+            canvasOutput.width = w; canvasOutput.height = h;
+            graphCanvas.width = w; graphCanvas.height = h;
+
+            src = new cv.Mat(h, w, cv.CV_8UC4);
+            gray = new cv.Mat(h, w, cv.CV_8UC1);
+            circles = new cv.Mat();
+            cap = new cv.VideoCapture(video);
+
             clearGraph();
-            lastResetTime = Date.now();
+            streaming = true;
+            requestAnimationFrame(processFrame);
         }
 
-        requestAnimationFrame(processFrame);
+        function clearGraph() {
+            const w = graphCanvas.width;
+            const h = graphCanvas.height;
+            
+            ctxGraph.fillStyle = "#1a1a1a";
+            ctxGraph.fillRect(0, 0, w, h);
+            
+            // Grid Identidade SMC
+            ctxGraph.strokeStyle = "#333";
+            ctxGraph.lineWidth = 1;
+            ctxGraph.font = "10px 'JetBrains Mono'";
+            ctxGraph.fillStyle = "#666";
 
-    } catch (e) {
-        console.error("Erro processamento:", e);
-        requestAnimationFrame(processFrame);
-    }
-}
-</script>
+            // Linhas Horizontais e Valores Y
+            for (let i = 0; i <= h; i += h/4) {
+                ctxGraph.beginPath();
+                ctxGraph.moveTo(0, i); ctxGraph.lineTo(w, i);
+                ctxGraph.stroke();
+                ctxGraph.fillText(Math.round(i), 5, i - 5);
+            }
 
+            // Linhas Verticais e Valores X
+            for (let i = 0; i <= w; i += w/4) {
+                ctxGraph.beginPath();
+                ctxGraph.moveTo(i, 0); ctxGraph.lineTo(i, h);
+                ctxGraph.stroke();
+                ctxGraph.fillText(Math.round(i), i + 5, h - 5);
+            }
+
+            // Identificação dos Eixos
+            ctxGraph.fillStyle = "#00529B";
+            ctxGraph.fillText("EIXO X →", w - 60, h - 20);
+            ctxGraph.fillText("EIXO Y ↓", 10, 20);
+
+            lastPosX = null; lastPosY = null;
+        }
+
+        function processFrame() {
+            if (!streaming) return;
+            try {
+                cap.read(src);
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+                cv.medianBlur(gray, gray, 7);
+
+                cv.HoughCircles(gray, circles, cv.HOUGH_GRADIENT, 1.2, 100, 150, 55, 10, 200);
+
+                cv.imshow("canvasOutput", src);
+                let ctxVideo = canvasOutput.getContext("2d");
+
+                if (circles.cols > 0) {
+                    let rawX = circles.data32F[0];
+                    let rawY = circles.data32F[1];
+                    let radius = circles.data32F[2];
+
+                    historyX.push(rawX); historyY.push(rawY);
+                    if (historyX.length > MOVING_AVG_SIZE) { historyX.shift(); historyY.shift(); }
+
+                    let avgX = historyX.reduce((a, b) => a + b) / historyX.length;
+                    let avgY = historyY.reduce((a, b) => a + b) / historyY.length;
+
+                    // Update UI Coords
+                    document.getElementById('val-x').innerText = Math.round(avgX).toString().padStart(3, '0');
+                    document.getElementById('val-y').innerText = Math.round(avgY).toString().padStart(3, '0');
+                    document.getElementById('status-detect').innerText = "TRACKING";
+
+                    // Desenha no vídeo
+                    ctxVideo.beginPath();
+                    ctxVideo.arc(avgX, avgY, radius, 0, Math.PI * 2);
+                    ctxVideo.strokeStyle = "#28A745";
+                    ctxVideo.lineWidth = 4;
+                    ctxVideo.stroke();
+
+                    // Trajetória no gráfico
+                    if (lastPosX !== null) {
+                        ctxGraph.beginPath();
+                        ctxGraph.moveTo(lastPosX, lastPosY);
+                        ctxGraph.lineTo(avgX, avgY);
+                        ctxGraph.strokeStyle = "#00529B"; // Azul SMC para a linha
+                        ctxGraph.lineWidth = 3;
+                        ctxGraph.stroke();
+                    }
+                    lastPosX = avgX; lastPosY = avgY;
+                } else {
+                    document.getElementById('status-detect').innerText = "SCANNING";
+                }
+
+                if (Date.now() - lastResetTime > 4000) {
+                    clearGraph();
+                    lastResetTime = Date.now();
+                }
+
+                requestAnimationFrame(processFrame);
+            } catch (e) {
+                requestAnimationFrame(processFrame);
+            }
+        }
+    </script>
 </body>
 </html>
