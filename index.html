@@ -19,7 +19,6 @@
             --radius: 6px;
         }
 
-        /* LAYOUT FIXO - SEM ROLAGEM */
         html, body {
             height: 100vh; width: 100vw; margin: 0; padding: 0;
             background-color: var(--bg-body);
@@ -40,7 +39,6 @@
         .logo-smc { height: 22px; }
         .header-title { font-size: 0.85rem; font-weight: 700; color: var(--smc-blue); text-transform: uppercase; }
 
-        /* GRID PRINCIPAL DIVIDIDO (50/50) */
         main {
             flex: 1; display: flex; flex-direction: column;
             padding: 8px; gap: 8px; box-sizing: border-box;
@@ -51,8 +49,7 @@
             background: var(--surface); border-radius: var(--radius);
             box-shadow: var(--shadow); border: 1px solid var(--border);
             display: flex; flex-direction: column; 
-            flex: 1; /* Faz cada card ocupar metade da altura disponível */
-            overflow: hidden;
+            flex: 1; overflow: hidden;
         }
 
         .card-header {
@@ -63,7 +60,6 @@
 
         .card-title { font-size: 0.7rem; font-weight: 700; color: var(--smc-dark); text-transform: uppercase; }
 
-        /* ÁREA DE COORDENADAS ABAIXO DO TÍTULO */
         .telemetry-inline {
             display: flex; gap: 15px; margin-top: 4px;
             font-family: 'JetBrains Mono', monospace;
@@ -112,7 +108,7 @@
 
         <div class="card">
             <div class="card-header">
-                <span class="p-badge">BUFFER: 4000ms</span>
+                <span class="p-badge">BUFFER: 10000ms</span>
                 <span class="card-title">Trajectory Mapping (X-Y Axis)</span>
                 
                 <div class="telemetry-inline">
@@ -121,7 +117,7 @@
                     <div id="status-detect" style="font-size: 0.65rem; color: var(--status-ok); margin-left: auto;">SCANNING...</div>
                 </div>
             </div>
-            <div class="card-body" style="background: #111;">
+            <div class="card-body" style="background: #FFFFFF;">
                 <canvas id="graphCanvas"></canvas>
             </div>
         </div>
@@ -180,15 +176,19 @@
         function clearGraph() {
             const w = graphCanvas.width;
             const h = graphCanvas.height;
-            ctxGraph.fillStyle = "#111";
+            
+            // Alterado para Fundo Branco
+            ctxGraph.fillStyle = "#FFFFFF";
             ctxGraph.fillRect(0, 0, w, h);
             
-            ctxGraph.strokeStyle = "#222";
+            // Grid em Preto de alto contraste
+            ctxGraph.strokeStyle = "#000000";
             ctxGraph.lineWidth = 1;
-            ctxGraph.font = "10px 'JetBrains Mono'";
-            ctxGraph.fillStyle = "#444";
+            
+            // Textos e Valores em Azul SMC
+            ctxGraph.font = "bold 10px 'JetBrains Mono'";
+            ctxGraph.fillStyle = "#00529B";
 
-            // Grid e Valores
             for (let i = 0; i <= h; i += h/4) {
                 ctxGraph.beginPath();
                 ctxGraph.moveTo(0, i); ctxGraph.lineTo(w, i);
@@ -210,8 +210,6 @@
                 cap.read(src);
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
                 cv.medianBlur(gray, gray, 7);
-
-                // Parametros estáveis: Param1=150 (bordas), Param2=55 (sensibilidade círculo)
                 cv.HoughCircles(gray, circles, cv.HOUGH_GRADIENT, 1.2, 100, 150, 55, 10, 200);
 
                 cv.imshow("canvasOutput", src);
@@ -228,25 +226,23 @@
                     let avgX = historyX.reduce((a, b) => a + b) / historyX.length;
                     let avgY = historyY.reduce((a, b) => a + b) / historyY.length;
 
-                    // Atualiza Coordenadas no Card
                     document.getElementById('val-x').innerText = Math.round(avgX).toString().padStart(3, '0');
                     document.getElementById('val-y').innerText = Math.round(avgY).toString().padStart(3, '0');
                     document.getElementById('status-detect').innerText = "TRACKING ACTIVE";
                     document.getElementById('status-detect').style.color = "#28A745";
 
-                    // Desenha no vídeo
                     ctxVideo.beginPath();
                     ctxVideo.arc(avgX, avgY, radius, 0, Math.PI * 2);
                     ctxVideo.strokeStyle = "#28A745";
                     ctxVideo.lineWidth = 4;
                     ctxVideo.stroke();
 
-                    // Trajetória
+                    // Alterado para Trajetória em VERMELHO
                     if (lastPosX !== null) {
                         ctxGraph.beginPath();
                         ctxGraph.moveTo(lastPosX, lastPosY);
                         ctxGraph.lineTo(avgX, avgY);
-                        ctxGraph.strokeStyle = "#00529B";
+                        ctxGraph.strokeStyle = "#FF0000"; 
                         ctxGraph.lineWidth = 2;
                         ctxGraph.stroke();
                     }
@@ -256,7 +252,8 @@
                     document.getElementById('status-detect').style.color = "#DC3545";
                 }
 
-                if (Date.now() - lastResetTime > 4000) {
+                // Alterado para Reset a cada 10 segundos (10000ms)
+                if (Date.now() - lastResetTime > 10000) {
                     clearGraph();
                     lastResetTime = Date.now();
                 }
